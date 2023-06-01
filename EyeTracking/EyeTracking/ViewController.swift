@@ -1,21 +1,14 @@
-//
-//  ViewController.swift
-//  EyeTracking
-//
-//  Created by youngjun goo on 12/04/2019.
-//  Copyright © 2019 youngjun goo. All rights reserved.
-//
-
 import UIKit
 import SceneKit
 import ARKit
 import WebKit
+import PDFKit
 
 class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     // MARK: - IBOutlet
-    
+    var cnt_top: Int = 0
+    var cnt_bottom: Int = 0
     @IBOutlet var sceneView: ARSCNView!
-    @IBOutlet var imageView: UIImageView!
     @IBOutlet var faceView: UIView!
     @IBOutlet var leftEyeView: UIView!
     @IBOutlet var rightEyeView: UIView!
@@ -29,6 +22,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     var btnList: [UIButton] = [UIButton]()
     
     var faceNode: SCNNode = SCNNode()
+    
+    var pdfView: PDFView = PDFView()
+    var pdfURL: PDFDocument?
     
     // 실제 iPad pro 12.9인치 의 물리적 크기 21.49 cm x 28.06cm
     let padScreenSize = CGSize(width: 0.2149, height: 0.2806)
@@ -93,6 +89,18 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        pdfView = PDFView(frame: self.faceView.bounds)
+        pdfView.autoresizingMask = [.flexibleWidth]
+        pdfView.usePageViewController(true)
+        self.faceView.addSubview(pdfView)
+        
+        pdfView.autoScales = true
+        
+        if let pdfURL = pdfURL {
+            pdfView.document = pdfURL
+        }
+        
         // Set the button Array
         
         // Set the SceneView's delegate
@@ -117,7 +125,28 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         self.targetLeftEyeNode.position.z = 2
         self.targetRightEyeNode.position.z = 2
         
+    
+        
     }
+    
+    func navigateToPageAtPoint(_ point: CGPoint, _ dir: Int) {
+            guard let document = pdfView.document else { return }
+            
+            if let currentPage = pdfView.currentPage {
+                let pageIndex = document.index(for: currentPage)
+                let pageBounds = currentPage.bounds(for: .cropBox)
+                let pagePoint = pdfView.convert(point, to: currentPage)
+                // Example: Navigate to the next page
+                let nextPageIndex = (pageIndex + dir) % document.pageCount
+                pdfView.go(to: document.page(at: nextPageIndex)!)
+                if dir == 1 {
+                    print("아래로")
+                } else {
+                    print("위로")
+                }
+            }
+        }
+    
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -238,10 +267,35 @@ extension ViewController {
         
         // 두 눈의 좌표 값이 모나리자의 얼굴 영역에 있는지 판별 하는
         let point = CGPoint(x: x, y: y)
+        
+        // UIView 생성 및 속성 설정
+        let circleView = UIView(frame: CGRect(x: x, y: y, width: 60, height: 60))
+        circleView.backgroundColor = UIColor.blue
+        circleView.alpha = 1 / 10
+        circleView.layer.cornerRadius = circleView.frame.width / 2
+        
+        // 화면에 추가
+        self.view.addSubview(circleView)
+        
+        // 3초 후에 뷰를 제거하는 타이머 설정
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
+            circleView.removeFromSuperview()
+        }
         if faceView.frame.contains(point) {
-            print("포함")
+            cnt_top = 0
+            cnt_bottom = 0
+            print("안에 있음", point)
         } else {
             
+            if point.y <= 100 && point.y >= 0 {
+                print("위에 있음", point)
+                cnt_top += 1;
+                
+            } else if point.y <= view.bounds.height && point.y >= view.bounds.height - 100 {
+                print("아래에 있음", point)
+                cnt_bottom += 1;
+                print(cnt_bottom)
+            }
             let ratioValue = view.frame.height / leftEyeView.frame.height
             
             if smoothEyeLookAtPositionX! / ratioValue < leftEyeView.frame.maxX && smoothEyeLookAtPositionY! / ratioValue < leftEyeView.frame.maxY {
@@ -254,7 +308,16 @@ extension ViewController {
                 self.rightEyeBallView.transform = leftTransform
             }
             
-           
+            if cnt_bottom == 60 {
+                navigateToPageAtPoint(point, pdfView.document!.pageCount + 1)
+                cnt_bottom = 0
+            }
+            
+            if cnt_top == 60 {
+                navigateToPageAtPoint(point, pdfView.document!.pageCount - 1)
+                cnt_top = 0
+            }
+            
         }
         
     }
