@@ -5,9 +5,18 @@ import WebKit
 import PDFKit
 
 class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
-    // MARK: - IBOutlet
+    
+    // 40이 차면 이전이나 다음 악보로 넘어가게 해줌
     var cnt_top: Int = 0
     var cnt_bottom: Int = 0
+    
+    // progress bar
+    @IBOutlet weak var top: UIView!
+    @IBOutlet weak var bottom: UIView!
+    @IBOutlet weak var topProgress: UIProgressView!
+    @IBOutlet weak var bottomProgress: UIProgressView!
+    
+    
     @IBOutlet var sceneView: ARSCNView!
     @IBOutlet var faceView: UIView!
     @IBOutlet var leftEyeView: UIView!
@@ -20,9 +29,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     @IBOutlet weak var eyeTargetPsoitionY: UILabel!
     
     var btnList: [UIButton] = [UIButton]()
-    
     var faceNode: SCNNode = SCNNode()
     
+    // pdf 띄울 뷰와 URL
     var pdfView: PDFView = PDFView()
     var pdfURL: PDFDocument?
     
@@ -91,8 +100,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         super.viewDidLoad()
         
         pdfView = PDFView(frame: self.faceView.bounds)
-        pdfView.autoresizingMask = [.flexibleWidth]
+        pdfView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         pdfView.usePageViewController(true)
+        pdfView.isUserInteractionEnabled = false
         self.faceView.addSubview(pdfView)
         
         pdfView.autoScales = true
@@ -124,29 +134,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         // 안구에서 2미터 떨어진 곳에 타겟팅 설정
         self.targetLeftEyeNode.position.z = 2
         self.targetRightEyeNode.position.z = 2
-        
-    
-        
     }
-    
-    func navigateToPageAtPoint(_ point: CGPoint, _ dir: Int) {
-            guard let document = pdfView.document else { return }
-            
-            if let currentPage = pdfView.currentPage {
-                let pageIndex = document.index(for: currentPage)
-                let pageBounds = currentPage.bounds(for: .cropBox)
-                let pagePoint = pdfView.convert(point, to: currentPage)
-                // Example: Navigate to the next page
-                let nextPageIndex = (pageIndex + dir) % document.pageCount
-                pdfView.go(to: document.page(at: nextPageIndex)!)
-                if dir == 1 {
-                    print("아래로")
-                } else {
-                    print("위로")
-                }
-            }
-        }
-    
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -171,6 +159,22 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 }
 
 extension ViewController {
+    
+    func increaseCnt(_ view: UIProgressView, _ dir: Int) {
+            // cnt 값을 프로그래스 바에 반영
+            let progress = Float(dir) / 30.0 // cnt 값을 0부터 30까지로 정규화
+            view.progress = progress
+    }
+    
+    func navigateToPageAtPoint(_ point: CGPoint, _ dir: Int) {
+        guard let document = pdfView.document else { return }
+        if let currentPage = pdfView.currentPage {
+            let pageIndex = document.index(for: currentPage)
+            let nextPageIndex = (pageIndex + dir) % document.pageCount
+            pdfView.go(to: document.page(at: nextPageIndex)!)
+        }
+    }
+    
     // 새로운 ARAnchor가 추가 될때마다 호출 되는 함수
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         
@@ -253,24 +257,18 @@ extension ViewController {
         let x = Int(round(smoothEyeLookAtPositionX! + self.padScreenPointSize.width / 2))
         let y = Int(round(smoothEyeLookAtPositionY! + self.padScreenPointSize.height / 2))
         
-        if  x < 0 {
-            self.eyeTargetPositionX.text = "0"
-        } else {
-            self.eyeTargetPositionX.text = "\(x)"
-        }
+        if  x < 0 { self.eyeTargetPositionX.text = "0" }
+        else { self.eyeTargetPositionX.text = "\(x)" }
        
-        if y < 0 {
-            self.eyeTargetPsoitionY.text = "0"
-        } else {
-            self.eyeTargetPsoitionY.text = "\(y)"
-        }
+        if y < 0 { self.eyeTargetPsoitionY.text = "0" }
+        else { self.eyeTargetPsoitionY.text = "\(y)" }
         
-        // 두 눈의 좌표 값이 모나리자의 얼굴 영역에 있는지 판별 하는
+        // 두 눈이 가리키는 좌표
         let point = CGPoint(x: x, y: y)
         
         // UIView 생성 및 속성 설정
         let circleView = UIView(frame: CGRect(x: x, y: y, width: 60, height: 60))
-        circleView.backgroundColor = UIColor.blue
+        circleView.backgroundColor = #colorLiteral(red: 0.1658741534, green: 0.502784431, blue: 0.6534992456, alpha: 1)
         circleView.alpha = 1 / 10
         circleView.layer.cornerRadius = circleView.frame.width / 2
         
@@ -278,49 +276,43 @@ extension ViewController {
         self.view.addSubview(circleView)
         
         // 3초 후에 뷰를 제거하는 타이머 설정
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
+        Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
             circleView.removeFromSuperview()
         }
-        if faceView.frame.contains(point) {
-            cnt_top = 0
-            cnt_bottom = 0
-            print("안에 있음", point)
-        } else {
-            
-            if point.y <= 100 && point.y >= 0 {
-                print("위에 있음", point)
-                cnt_top += 1;
-                
-            } else if point.y <= view.bounds.height && point.y >= view.bounds.height - 100 {
-                print("아래에 있음", point)
-                cnt_bottom += 1;
-                print(cnt_bottom)
-            }
-            let ratioValue = view.frame.height / leftEyeView.frame.height
-            
-            if smoothEyeLookAtPositionX! / ratioValue < leftEyeView.frame.maxX && smoothEyeLookAtPositionY! / ratioValue < leftEyeView.frame.maxY {
-                 let leftTransform = CGAffineTransform(translationX: smoothEyeLookAtPositionX! / ratioValue , y: smoothEyeLookAtPositionY! / ratioValue)
-                self.leftEyeBallView.transform = leftTransform
-            }
-            
-            if smoothEyeLookAtPositionX! / ratioValue < rightEyeView.frame.maxX && smoothEyeLookAtPositionY! / ratioValue < rightEyeView.frame.maxY {
-                let leftTransform = CGAffineTransform(translationX: smoothEyeLookAtPositionX! / ratioValue , y: smoothEyeLookAtPositionY! / ratioValue)
-                self.rightEyeBallView.transform = leftTransform
-            }
-            
-            if cnt_bottom == 60 {
-                navigateToPageAtPoint(point, pdfView.document!.pageCount + 1)
-                cnt_bottom = 0
-            }
-            
-            if cnt_top == 60 {
+        
+        increaseCnt(topProgress, cnt_top)
+        increaseCnt(bottomProgress, cnt_bottom)
+        
+        if top.frame.contains(point) {
+            cnt_top += 1
+            if cnt_top == 40 {
                 navigateToPageAtPoint(point, pdfView.document!.pageCount - 1)
                 cnt_top = 0
             }
             
+        } else if bottom.frame.contains(point) {
+            cnt_bottom += 1
+            if cnt_bottom == 40 {
+                navigateToPageAtPoint(point, pdfView.document!.pageCount + 1)
+                cnt_bottom = 0
+            }
+        } else {
+            cnt_top = 0
+            cnt_bottom = 0
+            return
         }
         
+        let ratioValue = view.frame.height / leftEyeView.frame.height
+        
+        if smoothEyeLookAtPositionX! / ratioValue < leftEyeView.frame.maxX && smoothEyeLookAtPositionY! / ratioValue < leftEyeView.frame.maxY {
+             let leftTransform = CGAffineTransform(translationX: smoothEyeLookAtPositionX! / ratioValue , y: smoothEyeLookAtPositionY! / ratioValue)
+            self.leftEyeBallView.transform = leftTransform
+        }
+        
+        if smoothEyeLookAtPositionX! / ratioValue < rightEyeView.frame.maxX && smoothEyeLookAtPositionY! / ratioValue < rightEyeView.frame.maxY {
+            let leftTransform = CGAffineTransform(translationX: smoothEyeLookAtPositionX! / ratioValue , y: smoothEyeLookAtPositionY! / ratioValue)
+            self.rightEyeBallView.transform = leftTransform
+        }
     }
-    
 }
 

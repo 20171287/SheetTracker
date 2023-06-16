@@ -2,7 +2,7 @@ import UIKit
 import PDFKit
 
 class mainViewController: UIViewController {
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -15,8 +15,8 @@ extension mainViewController: UIDocumentPickerDelegate {
     @IBAction func openPDF(_ sender: UIButton) {
         let documentPicker = UIDocumentPickerViewController(documentTypes: ["com.adobe.pdf"], in: .import)
         documentPicker.delegate = self
+        documentPicker.modalPresentationStyle = .fullScreen
         present(documentPicker, animated: true, completion: nil)
-
     }
     
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
@@ -26,8 +26,7 @@ extension mainViewController: UIDocumentPickerDelegate {
     
         let pdfDocument = PDFDocument(url: selectedFileURL)
         pdfViewController.pdfURL = pdfDocument
-        pdfViewController.modalPresentationStyle = .fullScreen
-        self.present(pdfViewController, animated: true, completion: nil)
+        navigationController?.pushViewController(pdfViewController, animated: true)
     }
     
 }
